@@ -1,7 +1,6 @@
 node_modules
 .idea
 /dist
-/static
 __data__
 .env
 .env.local
