@@ -1,0 +1,100 @@
+# Docker Compose for production (backend server + worker + Postgres + Redis)
+services:
+  database:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: vendure
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vendure"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DB_SYNCHRONIZE: "false"
+      ASSET_URL_PREFIX: ${ASSET_URL_PREFIX:-http://localhost:3000/assets/}
+    ports:
+      - "3000:3000"
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: ["node", "dist/src/index.js"]
+    volumes:
+      - assets-data:/usr/src/app/static/assets
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DB_SYNCHRONIZE: "false"
+      ASSET_URL_PREFIX: ${ASSET_URL_PREFIX:-http://localhost:3000/assets/}
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: ["node", "dist/src/index-worker.js"]
+    volumes:
+      - assets-data:/usr/src/app/static/assets
+    restart: unless-stopped
+
+  # New public-facing reverse proxy
+  nginx:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    depends_on:
+      server:
+        condition: service_started
+    ports:
+      - "8080:80"
+    environment:
+      NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/templates
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx/conf.d
+      ADMIN_HOST: ${ADMIN_HOST:-admin-store.teamsoft.vn}
+      GRAPHQL_HOST: ${GRAPHQL_HOST:-tonyzone-demo-graphql.teamsoft.vn}
+      ALLOWED_ORIGIN_REGEX: ${ALLOWED_ORIGIN_REGEX:-^https?://(www\\.)?(yourstorefront\\.com|tonyzone-demo\\.teamsoft\\.vn)$}
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    restart: unless-stopped
+
+volumes:
+  pgdata_prod:
+  assets-data:

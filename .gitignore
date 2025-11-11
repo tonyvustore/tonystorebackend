@@ -1,0 +1,13 @@
+node_modules
+.idea
+/dist
+/static
+__data__
+.env
+.env.local
+.env.production
+.tmp/
+logs/
+*.log
+yarn-error.log
+.DS_Store

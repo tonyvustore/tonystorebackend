@@ -1,0 +1,76 @@
+version: "3"
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    # command: ["./wait-for-it.sh", "database:5432", "--", "yarn", "start:server"]
+    command: sleep infinity
+    volumes:
+      - .:/usr/src/app
+    environment:
+      DATABASE_HOST: database
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: password
+      DATABASE_NAME: vendure
+      DATABASE_PORT: 5432
+      ASSET_URL_PREFIX: https://tonyzone-demo-gr
+    depends_on:
+      - database
+      - redis
+      - worker
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["./wait-for-it.sh", "database:5432", "--", "yarn", "start:worker"]
+    volumes:
+      - .:/usr/src/app
+    environment:
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: password
+      DATABASE_NAME: vendure
+      ASSET_URL_PREFIX: https://tonyzone-demo-graphql.teamsoft.vn
+    depends_on:
+      - database
+      - redis
+
+  database:
+    image: postgres:16
+    container_name: postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: vendure
+
+  redis:
+    image: redis:7.4
+    hostname: redis
+    container_name: redis
+    restart: unless-stopped
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    hostname: redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8085:8081"
+    depends_on:
+      - redis
+
+
+volumes:
+  pgdata:

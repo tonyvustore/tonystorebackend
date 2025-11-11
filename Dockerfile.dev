@@ -1,0 +1,19 @@
+# Development Dockerfile for Vendure backend (ts-node dev)
+FROM node:20-bullseye
+WORKDIR /usr/src/app
+
+# Install libs needed for asset processing in dev
+RUN apt-get update && apt-get install -y --no-install-recommends libvips \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=development
+
+# Pre-install dependencies to warm cache; source will be mounted at runtime
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile --production=false
+
+# Copy tsconfig for editor tooling (optional)
+COPY tsconfig.json ./
+
+# Default command will be overridden in compose
+CMD ["bash", "-lc", "yarn dev:server"]

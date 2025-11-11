@@ -1,0 +1,89 @@
+# Docker Compose for development (backend server + worker + Postgres + Redis)
+services:
+  database:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: vendure
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vendure"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DB_SYNCHRONIZE: "false"
+      ASSET_URL_PREFIX: http://localhost:3000/assets/
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: bash -lc "yarn install --production=false && yarn dev:server"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DB_SYNCHRONIZE: "false"
+      ASSET_URL_PREFIX: http://localhost:3000/assets/
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: bash -lc "yarn install --production=false && yarn dev:worker"
+    restart: unless-stopped
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      redis:
+        condition: service_started
+
+volumes:
+  pgdata:
