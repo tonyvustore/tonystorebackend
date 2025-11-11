@@ -23,7 +23,7 @@ export const paypalPaymentHandler = new PaymentMethodHandler({
 
     if (!paypalOrderId || !paypalCaptureId) {
       return {
-        amount,D
+        amount,
         state: 'Declined',
         method: 'PayPal',
         transactionId: '',
