@@ -9,7 +9,7 @@ import { StripePlugin } from '@vendure/payments-plugin/package/stripe';
 import { raw } from 'body-parser';
 
 import path from 'path';
-// import { OrderWebhookPlugin } from './plugins/order-webhook-plugin';
+import { OrderWebhookPlugin } from './plugins/order-webhook-plugin';
 import { automationFulfillmentHandler } from './plugins/automation-fulfillment-handler';
 import { hasAnchorSku, accessoryPercentageDiscount } from './plugins/promotions/upsell-promotion';
 import { paypalPaymentHandler } from './plugins/paypal-payment-handler';
@@ -156,11 +156,11 @@ export const config: VendureConfig = {
             },
         }),
         // OrderWebhookPlugin temporarily disabled in dev due to plugin init API mismatch
-        // OrderWebhookPlugin.init({
-        //     automationBaseUrl: process.env.AUTOMATION_BASE_URL || 'http://localhost:3002',
-        //     automationSecretKey: process.env.AUTOMATION_SECRET_KEY || 'change-me',
-        //     triggerStates: ['PaymentSettled'],
-        // }),
+        OrderWebhookPlugin.init({
+            automationBaseUrl: process.env.AUTOMATION_BASE_URL || 'http://localhost:3002',
+            automationSecretKey: process.env.AUTOMATION_SECRET_KEY || 'change-me',
+            triggerStates: ['PaymentSettled'],
+        }),
      ],
 };
 

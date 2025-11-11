@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, Inject } from '@nestjs/common';
-import { EventBus, Logger, OrderStateTransitionEvent, VendurePlugin } from '@vendure/core';
+import { EventBus, Logger, OrderStateTransitionEvent, VendurePlugin, PluginCommonModule } from '@vendure/core';
 import { Type } from '@vendure/common/lib/shared-types';
 import { URL } from 'url';
 import http from 'http';
@@ -79,14 +79,18 @@ class OrderWebhookSubscriber implements OnModuleInit {
 }
 
 @VendurePlugin({
-  providers: [OrderWebhookSubscriber],
+  imports: [PluginCommonModule],
+  providers: [
+    OrderWebhookSubscriber,
+    { provide: ORDER_WEBHOOK_OPTIONS, useFactory: () => OrderWebhookPlugin.__options ?? { automationBaseUrl: 'http://localhost:3002', automationSecretKey: 'change-me', triggerStates: ['PaymentSettled'] } },
+  ],
+  compatibility: '>=2.1.0 <2.2.0',
 })
 export class OrderWebhookPlugin {
+  static __options: OrderWebhookPluginOptions | undefined;
+
   static init(options: OrderWebhookPluginOptions): Type<OrderWebhookPlugin> {
-    return (this as any).with({
-      providers: [
-        { provide: ORDER_WEBHOOK_OPTIONS, useValue: options },
-      ],
-    });
+    OrderWebhookPlugin.__options = options;
+    return OrderWebhookPlugin as any;
   }
 }
