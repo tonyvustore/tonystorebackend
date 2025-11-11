@@ -1,0 +1,52 @@
+name: Build and Push Backend
+
+on:
+  push:
+    branches: [ deploy ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image tags
+        id: meta
+        shell: bash
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/store-vendure-backend
+        run: |
+          TAGS="${IMAGE_NAME}:${{ github.sha }}"
+          if [ "${{ github.ref_type }}" = "branch" ] && [ "${{ github.ref_name }}" = "deploy" ]; then
+            TAGS="${TAGS}\n${IMAGE_NAME}:deploy\n${IMAGE_NAME}:deploy-latest"
+          fi
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            REF="${{ github.ref_name }}"
+            if [[ "$REF" == v* ]]; then
+              TAGS="${TAGS}\n${IMAGE_NAME}:${REF}\n${IMAGE_NAME}:latest"
+            fi
+          fi
+          {
+            echo "tags<<EOF"
+            echo -e "${TAGS}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build & Push to GHCR
+        uses: ./.github/actions/build-backend-image
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          image_name: ghcr.io/${{ github.repository_owner }}/store-vendure-backend
+          context: .
+          dockerfile: Dockerfile
+          platforms: linux/amd64
+          tags_full: ${{ steps.meta.outputs.tags }}

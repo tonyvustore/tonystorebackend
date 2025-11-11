@@ -1,77 +1,80 @@
 name: Build and Push Backend Image
 
-description: Build and push backend Docker image to GHCR
+description: Build and push Docker image using Buildx
 
 inputs:
-  ghcr_username:
-    description: GitHub username for GHCR login
+  registry:
+    description: Container registry (e.g., ghcr.io or docker.io)
+    required: false
+    default: docker.io
+  username:
+    description: Registry username or actor
     required: true
-  github_token:
-    description: GitHub token for GHCR login (GITHUB_TOKEN)
+  password:
+    description: Registry password or token
+    required: true
+  image_name:
+    description: Full image name without tag (e.g., ghcr.io/owner/repo)
     required: true
   context:
-    description: Docker build context
+    description: Build context
     required: false
-    default: ./
-  file:
-    description: Dockerfile path
+    default: .
+  dockerfile:
+    description: Path to Dockerfile
     required: false
     default: Dockerfile
   platforms:
-    description: Target platforms
+    description: Target platforms (e.g., linux/amd64,linux/arm64)
     required: false
     default: linux/amd64
   tags:
-    description: Image tags (newline-separated)
-    required: true
-
-outputs:
-  digest:
-    description: Image digest
-    value: ${{ steps.build.outputs.digest }}
+    description: Single tag string (e.g., latest)
+    required: false
+    default: latest
+  build_args:
+    description: Optional build args (newline or comma separated)
+    required: false
+  tags_full:
+    description: Full image tags (newline-separated)
+    required: false
 
 runs:
   using: composite
   steps:
-    - name: Checkout (needed for actions using repo files)
-      uses: actions/checkout@v4
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Log in to GHCR
+    - name: Login to registry
       uses: docker/login-action@v3
       with:
-        registry: ghcr.io
-        username: ${{ inputs.ghcr_username }}
-        password: ${{ inputs.github_token }}
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.username }}
+        password: ${{ inputs.password }}
 
-    - name: Compute image tags
-      id: meta
+    - name: Compute tags
+      id: compute
       shell: bash
       run: |
-        BASE="ghcr.io/${{ github.repository_owner }}/store-vendure-backend"
-        TAGS="${BASE}:${{ github.sha }}"
-        if [ "${{ github.ref_type }}" = "branch" ]; then
-          TAGS="${TAGS}\n${BASE}:${{ github.ref_name }}"
-          if [ "${{ github.ref_name }}" = "deploy" ]; then
-            TAGS="${TAGS}\n${BASE}:deploy-latest"
-          fi
-        elif [ "${{ github.ref_type }}" = "tag" ]; then
-          TAGS="${TAGS}\n${BASE}:${{ github.ref_name }}"
+        TAGS="${{ inputs.tags_full }}"
+        if [ -z "$TAGS" ]; then
+          TAGS="${{ inputs.image_name }}:${{ inputs.tags }}"
         fi
         {
           echo "tags<<EOF"
-          echo -e "${TAGS}"
+          echo -e "$TAGS"
           echo "EOF"
         } >> "$GITHUB_OUTPUT"
 
     - name: Build and push
-      id: build
       uses: docker/build-push-action@v5
       with:
         context: ${{ inputs.context }}
-        file: ${{ inputs.file }}
+        file: ${{ inputs.dockerfile }}
         platforms: ${{ inputs.platforms }}
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
+        tags: ${{ steps.compute.outputs.tags }}
+        build-args: ${{ inputs.build_args }}
